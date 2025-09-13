@@ -1,0 +1,96 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React Native
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# APK build outputs (keep source, ignore built APKs)
+*.apk
+android/app/build/
+android/.gradle/
+android/gradle/
+!android/gradle/wrapper/gradle-wrapper.properties
+android/local.properties
+
+# iOS build outputs
+ios/build/
+ios/Pods/
+ios/Podfile.lock
+
+# Android Studio
+android/.idea/
+android/captures/
+android/keystore.properties
+
+# Gradle
+.gradle/
+build/
+
+# Jest
+coverage/
+
+# Flipper
+ios/Flipper/
+
+# Bundle artifacts
+*.jsbundle
+
+# Ruby
+ios/.bundle/
+
+# Auto generated
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-*
+android/app/src/main/res/raw/
+
+# Test coverage
+coverage/
