@@ -93,6 +93,7 @@ export interface AppSettings {
 }
 
 export type RootStackParamList = {
+  ProjectSelection: undefined;
   Onboarding: undefined;
   Setup: undefined;
   Main: undefined;
@@ -106,6 +107,5 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Chat: undefined;
-  Projects: undefined;
-  Settings: undefined;
+  Voice: undefined;
 };

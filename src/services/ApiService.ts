@@ -342,9 +342,97 @@ class ApiService {
   // Project management
   async getProjects(): Promise<ApiResponse<{projects: Project[]}>> {
     return this.makeRequest(async () => {
-      const response = await this.client.get('/mobile/projects');
+      // ULTRA-aggressive cache-busting to ensure fresh data from computer app
+      const cacheBuster = Date.now();
+      const randomId = Math.random().toString(36).substring(7);
+      
+      console.log(`ApiService.getProjects: Making FRESH request to computer app with cache-buster: ${cacheBuster}`);
+      console.log(`ApiService.getProjects: Request URL: ${this.config.baseURL}/mobile/projects`);
+      console.log(`ApiService.getProjects: Session ID: ${this.sessionId}`);
+      
+      const response = await this.client.get('/mobile/projects', {
+        params: {
+          _t: cacheBuster,
+          _refresh: 'force',
+          _random: randomId,
+          _fresh: 'true',
+          _nocache: Date.now(),
+          _requestPortfolioRepos: 'true' // Explicit flag for portfolio repos
+        },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'If-None-Match': '*',
+          'X-Requested-With': 'fresh-data-request',
+          'X-Portfolio-Request': 'github-repos' // Signal that we want GitHub portfolio repos
+        },
+        timeout: 10000 // 10 second timeout
+      });
+
+      console.log(`ApiService.getProjects: Raw HTTP status: ${response.status}`);
+      console.log(`ApiService.getProjects: Raw response headers:`, response.headers);
+      console.log(`ApiService.getProjects: Raw response from computer app:`, JSON.stringify(response.data, null, 2));
+      
+      if (response.data.success) {
+        const projects = response.data.projects || [];
+        console.log(`ApiService.getProjects: SUCCESS - Computer app returned ${projects.length} projects`);
+        
+        // Log each project for debugging
+        console.log('ApiService.getProjects: DETAILED PROJECT LIST:');
+        projects.forEach((project: any, index: number) => {
+          console.log(`  ${index + 1}. Name: "${project.name}"`);
+          console.log(`     Path: "${project.path}"`);
+          console.log(`     Description: "${project.description || 'None'}"`);
+          console.log(`     Language: "${project.language || 'None'}"`);
+          console.log(`     Last Modified: ${project.lastModified}`);
+          console.log(`     Is Git Repo: ${project.isGitRepo}`);
+          console.log('     ---');
+        });
+        
+        // Check if we're getting the expected portfolio repositories
+        const expectedRepos = ['HTN25_Project', 'MadRobin13-Website', 'My-Portfolio', 'Reefscape2025', 'Stratosphere-Website', 'svelte_website', 'toolbox', 'voice-task-manager'];
+        const receivedRepoNames = projects.map((p: any) => p.name);
+        const missingRepos = expectedRepos.filter(expected => !receivedRepoNames.includes(expected));
+        
+        console.log(`ApiService.getProjects: Expected portfolio repos: ${expectedRepos.join(', ')}`);
+        console.log(`ApiService.getProjects: Received repo names: ${receivedRepoNames.join(', ')}`);
+        if (missingRepos.length > 0) {
+          console.log(`ApiService.getProjects: MISSING portfolio repos: ${missingRepos.join(', ')}`);
+          console.log(`ApiService.getProjects: Computer app might not be scanning /Users/madrobin/Documents/code/github/`);
+        }
+        
+        return {
+          success: true,
+          data: {
+            projects: projects.map((project: any) => ({
+              ...project,
+              lastModified: new Date(project.lastModified),
+            })),
+          },
+        };
+      } else {
+        console.error(`ApiService.getProjects: Computer app returned error:`, response.data.error);
+        throw new Error(response.data.error || 'Failed to get projects');
+      }
+    });
+  }
+
+  // Force rescan of repositories from the file system
+  async rescanRepositories(): Promise<ApiResponse<{projects: Project[]}>> {
+    return this.makeRequest(async () => {
+      console.log('ApiService.rescanRepositories: Requesting computer app to rescan file system...');
+      
+      const response = await this.client.post('/mobile/projects/rescan', {
+        scanPath: '/Users/madrobin/Documents/code/github',
+        forceRescan: true,
+        includeHidden: false
+      }, {
+        timeout: 30000 // 30 second timeout for file system scan
+      });
 
       if (response.data.success) {
+        console.log(`ApiService.rescanRepositories: Rescan completed, found ${response.data.projects?.length || 0} projects`);
         return {
           success: true,
           data: {
@@ -355,7 +443,7 @@ class ApiService {
           },
         };
       } else {
-        throw new Error(response.data.error || 'Failed to get projects');
+        throw new Error(response.data.error || 'Failed to rescan repositories');
       }
     });
   }

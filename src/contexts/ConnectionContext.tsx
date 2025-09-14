@@ -48,6 +48,7 @@ export interface ConnectionContextValue {
   getChatHistory: (limit?: number, offset?: number) => Promise<{messages: ChatMessage[]; total: number} | null>;
   clearChatHistory: () => Promise<boolean>;
   getProjects: () => Promise<Project[] | null>;
+  rescanRepositories: () => Promise<Project[] | null>;
   openProject: (projectId: string, projectPath: string) => Promise<ProjectDetails | null>;
   getCurrentProject: () => Promise<ProjectDetails | null>;
   readFile: (filePath: string) => Promise<{path: string; content: string; size: number; modified: Date; extension: string} | null>;
@@ -58,17 +59,36 @@ export interface ConnectionContextValue {
   repositories: Project[];
   currentProject: string | null;
   refreshRepositories: () => void;
+  // Project sync methods
+  forceProjectSync: () => Promise<void>;
+  lastProjectSync: Date | null;
+  projectSyncEnabled: boolean;
+  setProjectSyncEnabled: (enabled: boolean) => void;
+  syncError: string | null;
+  syncRetryCount: number;
+  autoOpeningProject: boolean;
 }
 
 const defaultConfig: ConnectionConfig = {
-  serverUrl: 'localhost',
-  port: 3000,
+  serverUrl: '10.194.219.53', // Hardcoded IP address
+  port: 47893, // Correct mobile bridge port
   protocol: 'http',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000,
   pollingInterval: 5000,
 };
+
+// AGGRESSIVE LOGGING - This should show in React Native logs
+console.log('======================================');
+console.log('🚀🚀🚀 ConnectionContext DEFAULT CONFIG:');
+console.log('IP ADDRESS:', defaultConfig.serverUrl);
+console.log('PORT:', defaultConfig.port);
+console.log('======================================');
+
+// Log to verify changes are applied
+console.log('🚀 ConnectionContext: Using hardcoded IP address:', defaultConfig.serverUrl);
+console.log('🚀 ConnectionContext: Auto-repository opening enabled');
 
 const ConnectionContext = createContext<ConnectionContextValue | undefined>(
   undefined
@@ -102,11 +122,32 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   const [apiService, setApiService] = useState<ApiService | null>(null);
   const [repositories, setRepositories] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<string | null>(null);
+  const [projectSyncInterval, setProjectSyncInterval] = useState<NodeJS.Timeout | null>(null);
+  const [lastProjectSync, setLastProjectSync] = useState<Date | null>(null);
+  const [projectSyncEnabled, setProjectSyncEnabled] = useState(true);
+  const [syncRetryCount, setSyncRetryCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [autoOpeningProject, setAutoOpeningProject] = useState(false);
 
   // Load saved configuration on mount
   useEffect(() => {
     loadConfig();
   }, []);
+  
+  // Sync with app settings
+  useEffect(() => {
+    if (settings.connectionSettings) {
+      const newConfig = {
+        ...config,
+        serverUrl: settings.connectionSettings.host,
+        port: settings.connectionSettings.port,
+      };
+      if (newConfig.serverUrl !== config.serverUrl || newConfig.port !== config.port) {
+        console.log('Updating connection config from app settings:', newConfig);
+        setConfig(newConfig);
+      }
+    }
+  }, [settings.connectionSettings]);
 
   // Initialize API service when config changes
   useEffect(() => {
@@ -135,16 +176,20 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
               setSessionInfo(session);
             }
           });
-          // Load initial data
-          loadInitialData(service);
+          // Start periodic project sync (but don't load initial data - force explicit refresh)
+          startProjectSync(service);
+          // Automatically open last used repository
+          autoOpenLastRepository(service);
         } else {
           setSessionInfo(null);
+          stopProjectSync();
         }
       });
 
       return () => {
         unsubscribe();
         service.disconnect();
+        stopProjectSync();
       };
     }
   }, [config]);
@@ -203,21 +248,112 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     }
   };
 
-  const loadInitialData = async (service: ApiService) => {
+
+  const autoOpenLastRepository = async (service: ApiService) => {
+    if (autoOpeningProject) return;
+    
     try {
-      // Load projects (repositories)
-      const projects = await service.getProjects();
-      if (projects.data?.projects) {
-        setRepositories(projects.data.projects);
-      }
+      setAutoOpeningProject(true);
+      console.log('autoOpenLastRepository: Checking for last used repository...');
       
-      // Load current project if any
+      // First get current project to see if one is already open
       const currentProj = await service.getCurrentProject();
       if (currentProj.data?.project) {
+        console.log(`autoOpenLastRepository: Project already open: ${currentProj.data.project.name}`);
         setCurrentProject(currentProj.data.project.path);
+        return;
+      }
+      
+      // Get all projects to find the last used one
+      const projectsResult = await service.getProjects();
+      if (!projectsResult.data?.projects || projectsResult.data.projects.length === 0) {
+        console.log('autoOpenLastRepository: No projects available');
+        return;
+      }
+      
+      const projects = projectsResult.data.projects;
+      console.log(`autoOpenLastRepository: Found ${projects.length} available projects`);
+      
+      // Find the most recently modified project (likely the last used)
+      const lastUsedProject = projects.reduce((latest, current) => {
+        const currentModified = new Date(current.lastModified).getTime();
+        const latestModified = new Date(latest.lastModified).getTime();
+        return currentModified > latestModified ? current : latest;
+      });
+      
+      console.log(`autoOpenLastRepository: Auto-opening last used repository: ${lastUsedProject.name} (${lastUsedProject.path})`);
+      
+      // Automatically open the last used repository
+      const result = await service.openProject(lastUsedProject.id, lastUsedProject.path);
+      if (result.data?.project) {
+        setCurrentProject(result.data.project.path);
+        console.log(`autoOpenLastRepository: Successfully auto-opened: ${result.data.project.name}`);
+      } else {
+        console.log('autoOpenLastRepository: Failed to auto-open repository');
       }
     } catch (error) {
-      console.error('Failed to load initial data:', error);
+      console.error('autoOpenLastRepository: Error auto-opening repository:', error);
+    } finally {
+      setAutoOpeningProject(false);
+    }
+  };
+
+  const startProjectSync = (service: ApiService) => {
+    // DISABLED: No automatic background sync - only explicit fresh queries
+    // This prevents cached/stale data from interfering with fresh data requests
+    console.log('Project background sync DISABLED - using only explicit fresh queries for most recent data');
+    return;
+  };
+  
+  const stopProjectSync = () => {
+    if (projectSyncInterval) {
+      clearInterval(projectSyncInterval);
+      setProjectSyncInterval(null);
+      console.log('Stopped project synchronization');
+    }
+  };
+  
+  const forceProjectSync = async () => {
+    if (!apiService || !isConnected) {
+      console.log('forceProjectSync: Not connected to API service');
+      return;
+    }
+    
+    try {
+      console.log('forceProjectSync: Force syncing projects from computer app...');
+      
+      // Always fetch fresh project data
+      const projects = await apiService.getProjects();
+      if (projects.data?.projects) {
+        console.log(`forceProjectSync: Received ${projects.data.projects.length} fresh repositories`);
+        setRepositories(projects.data.projects);
+        setLastProjectSync(new Date());
+        
+        // Clear any sync errors
+        if (syncError) {
+          setSyncError(null);
+        }
+        if (syncRetryCount > 0) {
+          setSyncRetryCount(0);
+        }
+      } else {
+        console.log('forceProjectSync: No projects data received');
+        setLastProjectSync(new Date());
+      }
+      
+      // Also sync current project
+      const currentProj = await apiService.getCurrentProject();
+      if (currentProj.data?.project) {
+        console.log(`forceProjectSync: Current project: ${currentProj.data.project.name}`);
+        setCurrentProject(currentProj.data.project.path);
+      } else {
+        console.log('forceProjectSync: No current project');
+        setCurrentProject(null);
+      }
+    } catch (error) {
+      console.error('forceProjectSync: Failed to sync from computer app:', error);
+      setSyncError(error instanceof Error ? error.message : 'Force sync failed');
+      setSyncRetryCount(prev => prev + 1);
     }
   };
 
@@ -246,7 +382,12 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
         apiService.updateBaseURL(baseURL);
       }
 
-      console.log('Connecting to API:', `${config.protocol}://${config.serverUrl}:${config.port}`);
+      console.log('\n======================================');
+      console.log('🚀🚀🚀 ACTUAL CONNECTION ATTEMPT:');
+      console.log('CONNECTING TO IP:', config.serverUrl);
+      console.log('CONNECTING TO PORT:', config.port);
+      console.log('FULL URL:', `${config.protocol}://${config.serverUrl}:${config.port}`);
+      console.log('======================================\n');
       
       const success = await apiService.connect();
       
@@ -404,22 +545,91 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
   const getProjects = useCallback(
     async () => {
       if (!apiService || !isConnected) {
+        console.log('getProjects: Not connected to API service');
         return null;
       }
       
       try {
+        console.log('getProjects: Making direct fresh query to computer app for repositories...');
+        
+        // Always make a fresh API call - no caching, no local state dependency
         const result = await apiService.getProjects();
         const projects = result.data?.projects || null;
-        if (projects) {
+        
+        if (projects && projects.length > 0) {
+          console.log(`getProjects: SUCCESS - Received ${projects.length} fresh repositories directly from computer app`);
+          console.log('getProjects: Repository names:', projects.map(p => p.name).join(', '));
+          
+          // Update local state only for UI display, but always return fresh data
           setRepositories(projects);
+          setLastProjectSync(new Date());
+          
+          // Clear any sync errors since we got fresh data
+          if (syncError) {
+            setSyncError(null);
+          }
+          if (syncRetryCount > 0) {
+            setSyncRetryCount(0);
+          }
+        } else {
+          console.log('getProjects: WARNING - No projects received from computer app API');
+          setLastProjectSync(new Date());
         }
+        
+        // Always return the fresh data from API, not local state
         return projects;
       } catch (error) {
-        console.error('Get projects error:', error);
+        console.error('getProjects: ERROR - Failed to query computer app:', error);
+        setSyncError(error instanceof Error ? error.message : 'Failed to fetch repositories');
+        setSyncRetryCount(prev => prev + 1);
         return null;
       }
     },
-    [apiService, isConnected]
+    [apiService, isConnected, syncError, syncRetryCount]
+  );
+
+  const rescanRepositories = useCallback(
+    async () => {
+      if (!apiService || !isConnected) {
+        console.log('rescanRepositories: Not connected to API service');
+        return null;
+      }
+      
+      try {
+        console.log('rescanRepositories: Requesting computer app to rescan GitHub directory...');
+        
+        // First try the rescan endpoint
+        const result = await apiService.rescanRepositories();
+        const projects = result.data?.projects || null;
+        
+        if (projects && projects.length > 0) {
+          console.log(`rescanRepositories: SUCCESS - Rescan found ${projects.length} repositories`);
+          console.log('rescanRepositories: Repository names:', projects.map(p => p.name).join(', '));
+          
+          // Update local state
+          setRepositories(projects);
+          setLastProjectSync(new Date());
+          
+          // Clear any sync errors
+          if (syncError) {
+            setSyncError(null);
+          }
+          if (syncRetryCount > 0) {
+            setSyncRetryCount(0);
+          }
+        } else {
+          console.log('rescanRepositories: WARNING - Rescan found no repositories');
+        }
+        
+        return projects;
+      } catch (error) {
+        console.error('rescanRepositories: ERROR - Failed to rescan:', error);
+        // Fallback to regular getProjects
+        console.log('rescanRepositories: Falling back to regular getProjects...');
+        return await getProjects();
+      }
+    },
+    [apiService, isConnected, getProjects, syncError, syncRetryCount]
   );
 
   const openProject = useCallback(
@@ -544,6 +754,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     getChatHistory,
     clearChatHistory,
     getProjects,
+    rescanRepositories,
     openProject,
     getCurrentProject,
     readFile,
@@ -554,6 +765,14 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({
     repositories,
     currentProject,
     refreshRepositories,
+    // Project sync methods
+    forceProjectSync,
+    lastProjectSync,
+    projectSyncEnabled,
+    setProjectSyncEnabled,
+    syncError,
+    syncRetryCount,
+    autoOpeningProject,
   };
 
   return (

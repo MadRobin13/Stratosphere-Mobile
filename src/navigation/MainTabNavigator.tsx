@@ -3,8 +3,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import ChatScreen from '../screens/ChatScreen';
-import ProjectsScreen from '../screens/ProjectsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import VoiceScreen from '../screens/VoiceScreen';
 
 import {useTheme} from '../contexts/ThemeContext';
 import {MainTabParamList} from '../types';
@@ -26,11 +25,8 @@ const MainTabNavigator: React.FC = () => {
             case 'Chat':
               iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
               break;
-            case 'Projects':
-              iconName = focused ? 'folder' : 'folder-outline';
-              break;
-            case 'Settings':
-              iconName = focused ? 'settings' : 'settings-outline';
+            case 'Voice':
+              iconName = focused ? 'mic' : 'mic-outline';
               break;
             default:
               iconName = 'help';
@@ -61,21 +57,14 @@ const MainTabNavigator: React.FC = () => {
         name="Chat"
         component={ChatScreen}
         options={{
-          tabBarLabel: 'Chat',
+          tabBarLabel: 'Text Chat',
         }}
       />
       <Tab.Screen
-        name="Projects"
-        component={ProjectsScreen}
+        name="Voice"
+        component={VoiceScreen}
         options={{
-          tabBarLabel: 'Projects',
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarLabel: 'Settings',
+          tabBarLabel: 'Voice Chat',
         }}
       />
     </Tab.Navigator>

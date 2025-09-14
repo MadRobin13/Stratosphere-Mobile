@@ -30,8 +30,8 @@ const SetupScreen: React.FC<Props> = ({navigation}) => {
   const {theme} = useTheme();
   const {connect, isConnected, isConnecting, lastError, healthCheck} = useConnection();
   
-  const [host, setHost] = useState('192.168.1.100');
-  const [port, setPort] = useState('3000');
+  const [host, setHost] = useState('10.194.219.53');
+  const [port, setPort] = useState('47893');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionSuccess, setConnectionSuccess] = useState(false);
 
@@ -40,6 +40,31 @@ const SetupScreen: React.FC<Props> = ({navigation}) => {
       setConnectionSuccess(true);
     }
   }, [isConnected]);
+
+  // Auto-connect on screen load
+  useEffect(() => {
+    const autoConnect = async () => {
+      console.log('SetupScreen: Auto-connecting to hardcoded address...');
+      setIsTestingConnection(true);
+      try {
+        const connected = await connect(host, parseInt(port));
+        if (connected) {
+          console.log('SetupScreen: Auto-connection successful');
+          setConnectionSuccess(true);
+        } else {
+          console.log('SetupScreen: Auto-connection failed, user can try manual connection');
+        }
+      } catch (error) {
+        console.error('SetupScreen: Auto-connection error:', error);
+      } finally {
+        setIsTestingConnection(false);
+      }
+    };
+    
+    // Try to auto-connect after a short delay
+    const timer = setTimeout(autoConnect, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const validateInputs = () => {
     if (!host.trim()) {
@@ -201,10 +226,10 @@ const SetupScreen: React.FC<Props> = ({navigation}) => {
             style={styles.header}>
             <Icon name="wifi" size={48} color={theme.colors.primary} />
             <Text style={[styles.headerTitle, {color: theme.colors.text}]}>
-              Connect to Computer
+              Connecting to Computer
             </Text>
             <Text style={[styles.headerSubtitle, {color: theme.colors.textSecondary}]}>
-              Set up connection to your Voice Dev Assistant
+              Auto-connecting to your Voice Dev Assistant at 10.194.219.53:47893
             </Text>
           </LinearGradient>
 

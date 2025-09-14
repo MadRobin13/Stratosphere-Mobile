@@ -19,8 +19,6 @@ class MainApplication : Application(), ReactApplication {
       @SuppressWarnings("UnnecessaryLocalVariable")
       val packages = Arrays.asList<ReactPackage>(
           MainReactPackage()
-          // NOTE: Complex packages removed to prevent crashes
-          // Will add back incrementally once basic app works
       )
       return packages
     }

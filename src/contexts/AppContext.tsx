@@ -26,11 +26,14 @@ const defaultSettings: AppSettings = {
   voiceEnabled: true,
   autoSend: true,
   connectionSettings: {
-    host: 'localhost',
-    port: 3001,
+    host: '10.194.219.53', // Correct hardcoded IP address
+    port: 47893,           // Correct mobile bridge port
     autoReconnect: true,
   },
 };
+
+// Log to verify hardcoded settings
+console.log('🚀 AppContext: Hardcoded connection settings loaded:', defaultSettings.connectionSettings);
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
@@ -88,7 +91,15 @@ export const AppProvider: React.FC<{children: React.ReactNode}> = ({children}) =
       }
 
       if (savedSettings) {
-        setSettings({...defaultSettings, ...JSON.parse(savedSettings)});
+        const parsed = JSON.parse(savedSettings);
+        // Force hardcoded connection settings - never use cached connection data
+        const settingsWithHardcodedConnection = {
+          ...defaultSettings, 
+          ...parsed,
+          connectionSettings: defaultSettings.connectionSettings  // Always use hardcoded connection settings
+        };
+        console.log('🚀 AppContext: Forcing hardcoded connection settings:', defaultSettings.connectionSettings);
+        setSettings(settingsWithHardcodedConnection);
       }
 
       setIsFirstLaunch(firstLaunch === null);

@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {useTheme} from '../contexts/ThemeContext';
 import {useApp} from '../contexts/AppContext';
 import {RootStackParamList} from '../types';
+import Logo from '../components/Logo';
 
 type OnboardingScreenNavigationProp = StackNavigationProp<
   RootStackParamList,

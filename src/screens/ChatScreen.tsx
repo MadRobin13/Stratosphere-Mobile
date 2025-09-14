@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
+import {useNavigation} from '@react-navigation/native';
 
 import {useTheme} from '../contexts/ThemeContext';
 import {useApp} from '../contexts/AppContext';
@@ -27,6 +27,7 @@ const ChatScreen: React.FC = () => {
   const {theme} = useTheme();
   const {currentSession, addMessage, updateMessage, createNewSession, settings} = useApp();
   const {isConnected, sendMessage, sendVoiceMessage, getChatHistory} = useConnection();
+  const navigation = useNavigation();
   
   const [inputText, setInputText] = useState('');
   const [isVoiceListening, setIsVoiceListening] = useState(false);
@@ -252,45 +253,79 @@ const ChatScreen: React.FC = () => {
     if (currentSession?.messages.length === 0) {
       return (
         <View style={styles.welcomeContainer}>
-          <LinearGradient
-            colors={[theme.colors.primary + '20', theme.colors.secondary + '20']}
-            style={styles.welcomeGradient}>
-            <Icon name="sparkles" size={48} color={theme.colors.primary} />
-            <Text style={[styles.welcomeTitle, {color: theme.colors.text}]}>
-              Welcome to Stratosphere
+          <View style={styles.welcomeGradient}>
+            <View style={styles.logoContainer}>
+              <View style={styles.stratosphereLogo}>
+                <View style={styles.orbitRing} />
+                <View style={styles.centerDot} />
+                <View style={[styles.orbitRing, styles.outerRing]} />
+              </View>
+            </View>
+            <Text style={[styles.welcomeTitle, {color: '#FFFFFF'}]}>
+              Stratosphere
             </Text>
-            <Text style={[styles.welcomeSubtitle, {color: theme.colors.textSecondary}]}>
-              Your AI-powered mobile development companion
+            <Text style={[styles.welcomeSubtitle, {color: '#888888'}]}>
+              AI-powered development assistant
             </Text>
+            
+            {/* Project Context Display */}
+            {currentSession?.projectContext ? (
+              <View style={[styles.projectContextContainer, styles.activeProject]}>
+                <View style={styles.projectIndicator} />
+                <Text style={[styles.projectContextText, {color: '#FFFFFF'}]}>
+                  Active: {currentSession.projectContext.files?.[0]?.name || 'Project Connected'}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.projectContextContainer, styles.inactiveProject]}>
+                <View style={[styles.projectIndicator, styles.inactiveIndicator]} />
+                <Text style={[styles.projectContextText, {color: '#666666'}]}>
+                  No project context • Connect from Projects tab
+                </Text>
+              </View>
+            )}
+            
             <View style={styles.featuresContainer}>
               <View style={styles.featureItem}>
-                <Icon name="mic" size={20} color={theme.colors.primary} />
-                <Text style={[styles.featureText, {color: theme.colors.textSecondary}]}>
-                  Voice commands
+                <View style={styles.featureIcon}>
+                  <View style={styles.micIcon} />
+                </View>
+                <Text style={[styles.featureText, {color: '#CCCCCC'}]}>
+                  Voice
                 </Text>
               </View>
               <View style={styles.featureItem}>
-                <Icon name="code-slash" size={20} color={theme.colors.primary} />
-                <Text style={[styles.featureText, {color: theme.colors.textSecondary}]}>
-                  Code assistance
+                <View style={styles.featureIcon}>
+                  <View style={styles.codeIcon}>
+                    <View style={styles.codeLine} />
+                    <View style={[styles.codeLine, styles.codeLineShort]} />
+                  </View>
+                </View>
+                <Text style={[styles.featureText, {color: '#CCCCCC'}]}>
+                  Code
                 </Text>
               </View>
               <View style={styles.featureItem}>
-                <Icon name="git-branch" size={20} color={theme.colors.primary} />
-                <Text style={[styles.featureText, {color: theme.colors.textSecondary}]}>
-                  Repository management
+                <View style={styles.featureIcon}>
+                  <View style={styles.branchIcon}>
+                    <View style={styles.branchLine} />
+                    <View style={[styles.branchLine, styles.branchSplit]} />
+                  </View>
+                </View>
+                <Text style={[styles.featureText, {color: '#CCCCCC'}]}>
+                  Git
                 </Text>
               </View>
             </View>
             {!isConnected && (
               <View style={styles.connectionWarning}>
-                <Icon name="warning" size={16} color={theme.colors.warning} />
-                <Text style={[styles.connectionWarningText, {color: theme.colors.warning}]}>
-                  Not connected to computer app
+                <View style={styles.warningDot} />
+                <Text style={[styles.connectionWarningText, {color: '#FFFFFF'}]}>
+                  Connection required for AI features
                 </Text>
               </View>
             )}
-          </LinearGradient>
+          </View>
         </View>
       );
     }
@@ -313,18 +348,23 @@ const ChatScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background}]}>
       {/* Header */}
       <View style={[styles.header, {backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border}]}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.headerTitle, {color: theme.colors.text}]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}>
+          <Icon name="chevron-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, {color: '#FFFFFF'}]}>
             Stratosphere
           </Text>
           <View style={styles.connectionStatus}>
             <View
               style={[
                 styles.connectionDot,
-                {backgroundColor: isConnected ? theme.colors.success : theme.colors.error},
+                {backgroundColor: isConnected ? '#FFFFFF' : '#666666'},
               ]}
             />
-            <Text style={[styles.connectionText, {color: theme.colors.textSecondary}]}>
+            <Text style={[styles.connectionText, {color: '#CCCCCC'}]}>
               {isConnected ? 'Connected' : 'Disconnected'}
             </Text>
           </View>
@@ -435,6 +475,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
+  backButton: {
+    paddingRight: 8,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
   headerLeft: {
     flex: 1,
   },
@@ -478,9 +525,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   welcomeGradient: {
-    padding: 24,
-    borderRadius: 16,
+    padding: 32,
+    borderRadius: 2,
     alignItems: 'center',
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333333',
   },
   welcomeTitle: {
     fontSize: 24,
@@ -493,6 +543,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  projectContextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  projectContextText: {
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+    textAlign: 'center',
   },
   featuresContainer: {
     flexDirection: 'row',
@@ -512,11 +577,13 @@ const styles = StyleSheet.create({
   connectionWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    marginTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
   },
   connectionWarningText: {
     fontSize: 14,
@@ -568,6 +635,125 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  
+  // Minimalistic Stratosphere Logo
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  stratosphereLogo: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  orbitRing: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    opacity: 0.6,
+  },
+  outerRing: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    opacity: 0.3,
+  },
+  centerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  
+  // Project Context Indicators
+  activeProject: {
+    borderColor: '#FFFFFF',
+    borderWidth: 1,
+  },
+  inactiveProject: {
+    borderColor: '#333333',
+    borderWidth: 1,
+  },
+  projectIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+  },
+  inactiveIndicator: {
+    backgroundColor: '#666666',
+  },
+  
+  // Minimalistic Feature Icons
+  featureIcon: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  
+  // Voice Icon (circle with inner dot)
+  micIcon: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#CCCCCC',
+    backgroundColor: 'transparent',
+  },
+  
+  // Code Icon (horizontal lines)
+  codeIcon: {
+    width: 20,
+    height: 12,
+    justifyContent: 'space-between',
+  },
+  codeLine: {
+    height: 2,
+    backgroundColor: '#CCCCCC',
+    borderRadius: 1,
+    width: '100%',
+  },
+  codeLineShort: {
+    width: '70%',
+  },
+  
+  // Branch Icon (Y-shaped lines)
+  branchIcon: {
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  branchLine: {
+    position: 'absolute',
+    width: 2,
+    height: 12,
+    backgroundColor: '#CCCCCC',
+    borderRadius: 1,
+  },
+  branchSplit: {
+    transform: [{ rotate: '45deg' }],
+    height: 8,
+    top: 2,
+    left: 2,
+  },
+  
+  // Warning Indicator
+  warningDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF6B6B',
+    marginRight: 8,
   },
 });
 
