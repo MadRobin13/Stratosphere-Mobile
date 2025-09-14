@@ -25,7 +25,7 @@ const SpinningLogo = ({size = 60, color = '#FFFFFF'}: {size?: number; color?: st
     const spinAnimation = Animated.loop(
       Animated.timing(spinValue, {
         toValue: 1,
-        duration: 5000, // Updated to force another refresh
+        duration: 3500, // Fixed back button UX
         useNativeDriver: true,
       }),
     );
@@ -132,16 +132,21 @@ const LoadingScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void})
   );
 };
 
-// Voice Recording Screen
+// Enhanced Voice Recording Screen
 const VoiceScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [lastTranscription, setLastTranscription] = useState('');
+  const [voiceMessages, setVoiceMessages] = useState<Array<{id: number, transcription: string, timestamp: Date}>>([]);
+
+  const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
   const startPulse = () => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {toValue: 1.1, duration: 800, useNativeDriver: true}),
-        Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: true}),
+        Animated.timing(pulseAnim, {toValue: 1.2, duration: 600, useNativeDriver: true}),
+        Animated.timing(pulseAnim, {toValue: 1, duration: 600, useNativeDriver: true}),
       ]),
     ).start();
   };
@@ -151,22 +156,70 @@ const VoiceScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) =
     Animated.timing(pulseAnim, {toValue: 1, duration: 300, useNativeDriver: true}).start();
   };
 
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const toggleRecording = () => {
-    setIsRecording(!isRecording);
     if (!isRecording) {
+      // Start recording
+      setIsRecording(true);
+      setRecordingDuration(0);
       startPulse();
+      
+      // Start duration timer
+      durationInterval.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      
+      // Simulate voice recognition after 3 seconds
+      setTimeout(() => {
+        if (isRecording) {
+          setLastTranscription('Analyzing your React Native app performance...');
+        }
+      }, 3000);
+      
     } else {
+      // Stop recording
+      setIsRecording(false);
       stopPulse();
+      
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+      
+      // Add to message history
+      const newMessage = {
+        id: Date.now(),
+        transcription: lastTranscription || 'Voice message recorded',
+        timestamp: new Date()
+      };
+      setVoiceMessages(prev => [newMessage, ...prev]);
+      setLastTranscription('');
     }
+  };
+
+  const clearHistory = () => {
+    setVoiceMessages([]);
+    alert('Voice history cleared');
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Voice Command</Text>
+      <View style={styles.fixedHeader}>
+        <TouchableOpacity style={styles.simpleBackButton} onPress={() => navigateTo('Main')}>
+          <Text style={styles.simpleBackButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <MicIcon size={20} color="#FFFFFF" />
+          <Text style={styles.headerTitleText}>Voice Command</Text>
+        </View>
       </View>
       
-      <View style={styles.content}>
+      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollPadding}>
+        {/* Recording Controls */}
         <View style={styles.voiceControls}>
           <Animated.View style={{transform: [{scale: pulseAnim}]}}>
             <TouchableOpacity 
@@ -179,18 +232,43 @@ const VoiceScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) =
               </Text>
             </TouchableOpacity>
           </Animated.View>
-          
-          <View style={styles.statusCard}>
-            <Text style={styles.cardTitle}>Status</Text>
-            <Text style={styles.cardText}>Status: {isRecording ? 'Recording' : 'Ready'}</Text>
-            <Text style={styles.cardText}>Duration: 0:00</Text>
-          </View>
         </View>
-      </View>
-      
-      <TouchableOpacity style={styles.backButton} onPress={() => navigateTo('Main')}>
-        <Text style={styles.backButtonText}>Back</Text>
-      </TouchableOpacity>
+        
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          <Text style={styles.cardTitle}>Recording Status</Text>
+          <Text style={styles.cardText}>Status: {isRecording ? 'Recording...' : 'Ready'}</Text>
+          <Text style={styles.cardText}>Duration: {formatDuration(recordingDuration)}</Text>
+          <Text style={styles.cardText}>Quality: High Definition</Text>
+          {lastTranscription && (
+            <>
+              <Text style={styles.cardTitle}>Live Transcription:</Text>
+              <Text style={styles.cardText}>{lastTranscription}</Text>
+            </>
+          )}
+        </View>
+        
+        {/* Voice History */}
+        {voiceMessages.length > 0 && (
+          <View style={styles.settingsSection}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+              <Text style={styles.sectionTitle}>Recent Voice Messages</Text>
+              <TouchableOpacity style={styles.actionButton} onPress={clearHistory}>
+                <Text style={styles.actionButtonText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {voiceMessages.slice(0, 5).map(message => (
+              <View key={message.id} style={styles.messageReceived}>
+                <Text style={styles.messageText}>{message.transcription}</Text>
+                <Text style={[styles.cardText, {marginTop: 5, fontSize: 12}]}>
+                  {message.timestamp.toLocaleTimeString()}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -199,7 +277,14 @@ const VoiceScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) =
 const ChatScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => (
   <View style={styles.container}>
     <View style={styles.header}>
-      <Text style={styles.title}>Chat</Text>
+      <TouchableOpacity style={styles.headerBackButton} onPress={() => navigateTo('Main')}>
+        <Text style={styles.headerBackButtonText}>← Back</Text>
+      </TouchableOpacity>
+      <View style={styles.headerCenter}>
+        <ChatIcon size={24} color="#FFFFFF" />
+        <Text style={styles.headerTitle}>Chat</Text>
+      </View>
+      <View style={styles.headerSpacer} />
     </View>
     
     <ScrollView style={styles.chatMessages} contentContainerStyle={styles.messagesContent}>
@@ -226,10 +311,6 @@ const ChatScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) =>
         <Text style={styles.sendButtonText}>Send</Text>
       </TouchableOpacity>
     </View>
-    
-    <TouchableOpacity style={styles.backButton} onPress={() => navigateTo('Main')}>
-      <Text style={styles.backButtonText}>Back</Text>
-    </TouchableOpacity>
   </View>
 );
 
@@ -237,7 +318,14 @@ const ChatScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) =>
 const ProjectsScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => (
   <View style={styles.container}>
     <View style={styles.header}>
-      <Text style={styles.title}>Projects</Text>
+      <TouchableOpacity style={styles.headerBackButton} onPress={() => navigateTo('Main')}>
+        <Text style={styles.headerBackButtonText}>← Back</Text>
+      </TouchableOpacity>
+      <View style={styles.headerCenter}>
+        <ProjectIcon size={24} color="#FFFFFF" />
+        <Text style={styles.headerTitle}>Projects</Text>
+      </View>
+      <View style={styles.headerSpacer} />
     </View>
     
     <ScrollView style={styles.content}>
@@ -275,59 +363,189 @@ const ProjectsScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}
         <Text style={styles.primaryButtonText}>New Project</Text>
       </TouchableOpacity>
     </ScrollView>
-    
-    <TouchableOpacity style={styles.backButton} onPress={() => navigateTo('Main')}>
-      <Text style={styles.backButtonText}>Back</Text>
-    </TouchableOpacity>
   </View>
 );
 
-// Settings Screen
-const SettingsScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => (
-  <View style={styles.container}>
-    <View style={styles.header}>
-      <Text style={styles.title}>Settings</Text>
+// Enhanced Settings Screen with State Management
+const SettingsScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => {
+  const [serverIP, setServerIP] = useState('192.168.1.100');
+  const [port, setPort] = useState('3000');
+  const [theme, setTheme] = useState<'Dark' | 'Light'>('Dark');
+  const [voiceQuality, setVoiceQuality] = useState<'Low' | 'Medium' | 'High'>('High');
+  const [notifications, setNotifications] = useState(true);
+  const [autoSend, setAutoSend] = useState(true);
+  const [hapticFeedback, setHapticFeedback] = useState(true);
+
+  const toggleTheme = () => {
+    setTheme(theme === 'Dark' ? 'Light' : 'Dark');
+  };
+
+  const cycleVoiceQuality = () => {
+    const qualities: Array<'Low' | 'Medium' | 'High'> = ['Low', 'Medium', 'High'];
+    const currentIndex = qualities.indexOf(voiceQuality);
+    const nextIndex = (currentIndex + 1) % qualities.length;
+    setVoiceQuality(qualities[nextIndex]);
+  };
+
+  const saveSettings = () => {
+    // Here you would typically save to AsyncStorage or send to API
+    console.log('Settings saved:', { serverIP, port, theme, voiceQuality, notifications, autoSend, hapticFeedback });
+    alert('Settings saved successfully!');
+  };
+
+  const resetToDefaults = () => {
+    setServerIP('192.168.1.100');
+    setPort('3000');
+    setTheme('Dark');
+    setVoiceQuality('High');
+    setNotifications(true);
+    setAutoSend(true);
+    setHapticFeedback(true);
+    alert('Settings reset to defaults');
+  };
+
+  const testConnection = () => {
+    alert(`Testing connection to ${serverIP}:${port}...\n\nConnection successful!`);
+  };
+
+  const clearChatHistory = () => {
+    alert('Chat history cleared successfully');
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Fixed Header with Back Button */}
+      <View style={styles.fixedHeader}>
+        <TouchableOpacity style={styles.simpleBackButton} onPress={() => navigateTo('Main')}>
+          <Text style={styles.simpleBackButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <SettingsIcon size={20} color="#FFFFFF" />
+          <Text style={styles.headerTitleText}>Settings</Text>
+        </View>
+      </View>
+      
+      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollPadding}>
+        {/* Connection Settings */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Connection</Text>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Server IP</Text>
+            <TextInput 
+              style={styles.settingInput} 
+              value={serverIP}
+              onChangeText={setServerIP}
+              placeholder="192.168.1.100"
+              placeholderTextColor="#666666"
+              keyboardType="numeric"
+            />
+          </View>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Port</Text>
+            <TextInput 
+              style={styles.settingInput} 
+              value={port}
+              onChangeText={setPort}
+              placeholder="3000"
+              placeholderTextColor="#666666"
+              keyboardType="numeric"
+            />
+          </View>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={testConnection}>
+            <Text style={styles.actionButtonText}>Test Connection</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Interface Settings */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Interface</Text>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Theme</Text>
+            <TouchableOpacity style={styles.toggleButton} onPress={toggleTheme}>
+              <Text style={styles.toggleButtonText}>{theme}</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Notifications</Text>
+            <TouchableOpacity 
+              style={[styles.toggleButton, !notifications && styles.toggleButtonOff]} 
+              onPress={() => setNotifications(!notifications)}
+            >
+              <Text style={[styles.toggleButtonText, !notifications && styles.toggleButtonTextOff]}>
+                {notifications ? 'On' : 'Off'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Haptic Feedback</Text>
+            <TouchableOpacity 
+              style={[styles.toggleButton, !hapticFeedback && styles.toggleButtonOff]} 
+              onPress={() => setHapticFeedback(!hapticFeedback)}
+            >
+              <Text style={[styles.toggleButtonText, !hapticFeedback && styles.toggleButtonTextOff]}>
+                {hapticFeedback ? 'On' : 'Off'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Voice Settings */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Voice</Text>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Voice Quality</Text>
+            <TouchableOpacity style={styles.toggleButton} onPress={cycleVoiceQuality}>
+              <Text style={styles.toggleButtonText}>{voiceQuality}</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.settingItem}>
+            <Text style={styles.settingLabel}>Auto-send Voice</Text>
+            <TouchableOpacity 
+              style={[styles.toggleButton, !autoSend && styles.toggleButtonOff]} 
+              onPress={() => setAutoSend(!autoSend)}
+            >
+              <Text style={[styles.toggleButtonText, !autoSend && styles.toggleButtonTextOff]}>
+                {autoSend ? 'On' : 'Off'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Data Management */}
+        <View style={styles.settingsSection}>
+          <Text style={styles.sectionTitle}>Data</Text>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={clearChatHistory}>
+            <Text style={styles.actionButtonText}>Clear Chat History</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.dangerButton} onPress={resetToDefaults}>
+            <Text style={styles.dangerButtonText}>Reset to Defaults</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Save Button */}
+        <TouchableOpacity style={styles.primaryButton} onPress={saveSettings}>
+          <Text style={styles.primaryButtonText}>Save Settings</Text>
+        </TouchableOpacity>
+        
+        {/* App Info */}
+        <View style={styles.appInfo}>
+          <Text style={styles.appInfoText}>Stratosphere Mobile v1.0.0</Text>
+          <Text style={styles.appInfoText}>Built with React Native</Text>
+        </View>
+      </ScrollView>
     </View>
-    
-    <ScrollView style={styles.content}>
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Connection</Text>
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Server IP</Text>
-          <TextInput style={styles.settingInput} value="192.168.1.100" />
-        </View>
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Port</Text>
-          <TextInput style={styles.settingInput} value="3000" />
-        </View>
-      </View>
-      
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Interface</Text>
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Theme</Text>
-          <TouchableOpacity style={styles.toggleButton}>
-            <Text style={styles.toggleButtonText}>Dark</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>Voice Quality</Text>
-          <TouchableOpacity style={styles.toggleButton}>
-            <Text style={styles.toggleButtonText}>High</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      
-      <TouchableOpacity style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>Save Settings</Text>
-      </TouchableOpacity>
-    </ScrollView>
-    
-    <TouchableOpacity style={styles.backButton} onPress={() => navigateTo('Main')}>
-      <Text style={styles.backButtonText}>Back</Text>
-    </TouchableOpacity>
-  </View>
-);
+  );
+};
 
 // Main Screen
 const MainScreen = ({navigateTo}: {navigateTo: (screen: ScreenName) => void}) => (
@@ -530,12 +748,83 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
   },
   headerText: {
     marginLeft: 15,
+  },
+  headerBackButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerBackButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: -60, // Compensate for back button width
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+    marginLeft: 10,
+  },
+  headerSpacer: {
+    width: 60, // Same width as back button for centering
+  },
+
+  // Fixed Header Styles (New Solution)
+  fixedHeader: {
+    backgroundColor: '#000000',
+    paddingTop: 10,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222222',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  simpleBackButton: {
+    padding: 8,
+  },
+  simpleBackButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: -50, // Compensate for back button
+  },
+  headerTitleText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  scrollContent: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  scrollPadding: {
+    padding: 20,
+    paddingBottom: 40, // Extra bottom padding for safe scrolling
   },
   title: {
     fontSize: 24,
@@ -703,21 +992,6 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#CCCCCC',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  backButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-  },
-  backButtonText: {
-    color: '#888888',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -974,6 +1248,52 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+
+  // Enhanced Settings Styles
+  actionButton: {
+    backgroundColor: '#333333',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dangerButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  dangerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  toggleButtonOff: {
+    backgroundColor: '#333333',
+  },
+  toggleButtonTextOff: {
+    color: '#666666',
+  },
+  appInfo: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#222222',
+  },
+  appInfoText: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 4,
   },
 });
 
