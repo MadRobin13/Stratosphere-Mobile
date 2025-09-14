@@ -5,6 +5,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.shell.MainReactPackage
+import com.facebook.soloader.SoLoader
 import java.util.Arrays
 
 class MainApplication : Application(), ReactApplication {
@@ -15,10 +16,13 @@ class MainApplication : Application(), ReactApplication {
     }
 
     override fun getPackages(): List<ReactPackage> {
-      return Arrays.asList<ReactPackage>(
+      @SuppressWarnings("UnnecessaryLocalVariable")
+      val packages = Arrays.asList<ReactPackage>(
           MainReactPackage()
-          // Add other packages here as needed
+          // NOTE: Complex packages removed to prevent crashes
+          // Will add back incrementally once basic app works
       )
+      return packages
     }
 
     override fun getJSMainModuleName(): String {
@@ -32,5 +36,6 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    SoLoader.init(this, /* native exopackage */ false)
   }
 }
